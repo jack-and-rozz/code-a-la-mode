@@ -1,0 +1,1 @@
+Just run `com.codingame.game.Main.java` and then send your browser to http://localhost:8888
