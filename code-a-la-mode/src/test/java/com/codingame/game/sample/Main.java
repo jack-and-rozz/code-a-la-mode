@@ -12,8 +12,8 @@ public class Main {
     // args1... ai1 dir
     // args2... ai1 dir
     public static void main(String[] args) {
-        if(args.length != 4){
-            System.out.println("usage: ai1 ai2 ai3 resultfile");
+        if(args.length != 5){
+            System.out.println("usage: ai1 ai2 ai3 resultfile jsonfile");
         }
 
         MultiplayerGameRunner gameRunner = new MultiplayerGameRunner();
@@ -40,6 +40,19 @@ public class Main {
             filewriter.write(result.scores.get(0) + "\n");
             filewriter.write(result.scores.get(1) + "\n");
             filewriter.write(result.scores.get(2) + "\n");
+
+            filewriter.close();
+        }catch(IOException e){
+            System.out.println(e);
+        }
+
+        String resultJson = gameRunner.getJSONResult();
+
+        try{
+            File file = new File(args[4]);
+            FileWriter filewriter = new FileWriter(file);
+
+            filewriter.write(resultJson);
 
             filewriter.close();
         }catch(IOException e){

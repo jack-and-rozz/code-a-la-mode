@@ -212,7 +212,7 @@ abstract class GameRunner {
 
     abstract protected void buildInitCommand(Command initCommand);
 
-    private String getJSONResult() {
+    public String getJSONResult() {
         addPlayerIds();
 
         return new Gson().toJson(gameResult);

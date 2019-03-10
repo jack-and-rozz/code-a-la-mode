@@ -458,6 +458,95 @@ int calculateRequiredTurn(Customer* customer, Player* player){
     }
 }
 
+class Action{
+public:
+    float score;
+    int turn;
+    int type;
+
+    Action(int type, float score, int turn){
+        this->score = score;
+        this->turn = turn;
+        this->type = type;
+    }
+};
+
+enum action_type {
+    PREPARE_STRAWBERRY = 0,
+    PREPARE_CROSSIENT = 1,
+    PREPARE_TART = 2,
+    TAKE_TART = 3,
+    TAKE_CROSSIENT = 4,
+    DISTRIBUTE_DISH = 5,
+    DISTRIBUTE_DOUGH = 6,
+    DISTRIBUTE_BLUEBERRY = 7,
+    DISTRIBUTE_ICECREAM = 8,
+    MAKE_CUSTOMER1 = 9,
+    MAKE_CUSTOMER2 = 10,
+    MAKE_CUSTOMER3 = 11,
+};
+
+const float COUNT_VALUE_CHOPPED_STRAWBERRIES = 1;
+const float BASE_VALUE_CHOPPED_STRAWBERRIES = 0;
+const float COUNT_VALUE_CROSSIENT = 1.2;
+const float BASE_VALUE_CROSSIENT = 0;
+const float COUNT_VALUE_TART = 1.5;
+const float BASE_VALUE_TART = 0;
+
+float calculatePrepareValue(string target_item){
+    float prepare_count_value;
+    float prepare_base_value;
+    if(target_item == CHOPPED_STRAWBERRIES){
+        prepare_count_value = COUNT_VALUE_CHOPPED_STRAWBERRIES;
+        prepare_base_value = BASE_VALUE_CHOPPED_STRAWBERRIES;
+    }
+    if(target_item == CROISSANT){
+        prepare_count_value = COUNT_VALUE_CROSSIENT;
+        prepare_base_value = BASE_VALUE_CROSSIENT;
+    }
+    if(target_item == TART){
+        prepare_count_value = COUNT_VALUE_TART;
+        prepare_base_value = BASE_VALUE_TART;
+    }
+    
+    int current_item_count = searchTableItem(tableItems, target_item).size();
+    for(string item : player->getItemVector()){
+        if(item == target_item){
+            current_item_count ++ ;
+        }
+    }
+    if(ovenContents == target_item){
+        current_item_count ++;
+    }
+    if(target_item == CROISSANT && ovenContents == DOUGH){
+        current_item_count ++;
+    }
+    if(target_item == TART && ovenContents == RAW_TART){
+        current_item_count ++;
+    }
+
+    int require_item_count = 0;
+    for(Customer* customer : currentCustomers){
+        for(string item : customer->getItemVector()){
+            if(item == target_item){
+                require_item_count ++;
+            }
+        }
+    }
+
+    return (require_item_count - current_item_count)
+}
+
+vector<Actions*> calculateActionValue(){
+    vector<Action*> result;
+
+    calculatePrepareValue(CHOPPED_STRAWBERRIES);
+    calculetePrepaseTurn("STRAWBERRY");
+
+    result.push_back()
+}
+
+
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
@@ -640,16 +729,5 @@ int main()
         else {
             cout << "WAIT" << endl;
         }
-        /*else if(currentCustomers[0]->getItemVector().size() > player->getItemVector().size()){
-            string targetItem = currentCustomers[0]->getItemVector()[player->getItemVector().size()];
-            cerr << "targetItem:" <<  targetItem << endl;
-            int* pos = searchKitchenByStringName(kitchenMap, tableItems, targetItem)[0];
-            cout << "USE " << pos[0] << " " << pos[1] << endl;
-        }
-        // order is completed
-        else{
-            int* pos = searchKitchen(kitchenMap, 'W');
-            cout << "USE " << pos[0] << " " << pos[1] << endl;
-        }*/
     }
 }
