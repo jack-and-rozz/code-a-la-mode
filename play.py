@@ -1,5 +1,5 @@
 # coding: utf-8
-import json
+import json, time
 import sys, os, math
 import numpy as np
 import argparse
@@ -27,6 +27,7 @@ class Vocab():
 
 # Board size
 Y, X = 7, 11
+INF = 9999
 
 # Tiles
 PLAYER = "0"
@@ -104,9 +105,10 @@ def state2tensor(state):
     kitchen = state['kitchen']
     items = state['items']
     orders = state['orders']
-    
+    player = state['player']
+    partner = state['partner']
   else:
-    turn, timer, kitchen, items, orders = state
+    turn, timer, kitchen, items, orders, player, partner = state
   # Kitchen and Items (= board) state
   max_x = len(kitchen[0])
   max_y = len(kitchen) 
@@ -132,13 +134,25 @@ def state2tensor(state):
 
   timer_state = np.zeros([11])
   timer_state[timer] = 1
+  player_coord, _player_items = player
+  player_items = np.zeros([item_vocab.size])
+  for item in _player_items:
+    player_items[item_vocab.token2id(item)] += 1
+  partner_coord, _partner_items = partner
+  partner_items = np.zeros([item_vocab.size])
+  for item in _partner_items:
+    partner_items[item_vocab.token2id(item)] += 1
 
   state = {
-    'turn': turn,
+    'turn': np.array(turn),
     'board': board_state,
     'orders': order_state,
-    'order_awards': awards,
-    'timer': timer
+    'order_awards': np.array(awards),
+    'timer': np.array(timer),
+    'player_coord': np.array(player_coord),
+    'player_items': player_items,
+    'partner_coord': np.array(partner_coord),
+    'partner_items': partner_items,
   }
   return state
 
@@ -156,7 +170,6 @@ board_vocab = Vocab(item_list +tile_list)
 
 action_list = ['WAIT'] + flatten([["MOVE %d %d" % (j, i) for j in range(X) ] for i in range(Y)]) + flatten([["USE %d %d" % (j, i) for j in range(X) ] for i in range(Y)])
 action_vocab = Vocab(action_list)
-
 #######################################
 ##          Game Classes
 #######################################
@@ -236,19 +249,21 @@ class Game:
     
     if as_json:
       #state = self.state_tensor
-      turn, timer, kitchen, items, orders = self.state
+      turn, timer, kitchen, items, orders, player, partner = self.state
       state = {}
       state['turn'] = turn
       state['kitchen'] = kitchen
       state['items'] = items
       state['orders'] = orders
       state['timer'] = timer
+      state['player'] = player
+      state['partner'] = partner
       # for k, v in state.items():
       #   if type(v) == np.ndarray:
       #     state[k] = v.tolist()
       log(json.dumps(state))
     else:
-      turn, timer, kitchen, items, orders = self.state
+      turn, timer, kitchen, items, orders, player, partner = self.state
       kitchen = '\n'.join([''.join(line) for line in kitchen])
       log('Turn: ', turn)
       log('Oven Timer:', timer)
@@ -265,7 +280,9 @@ class Game:
     kitchen_state[self.partner.y][self.partner.x] = PARTNER
     items_state = [(x, y, parse_item(item_str)) for x, y, item_str in self.items]
     orders_state = [(parse_item(order.item), order.award) for order in self.orders]
-    state = [self.turn, self.oven_timer, kitchen_state, items_state, orders_state]
+    player_state = ((self.player.x, self.player.y), parse_item(self.player.item))
+    partner_state = ((self.partner.x, self.partner.y), parse_item(self.partner.item))
+    state = [self.turn, self.oven_timer, kitchen_state, items_state, orders_state, player_state, partner_state]
     return state
 
 ################# PARAMS ############################
@@ -301,7 +318,6 @@ class NPCNNBased:
     params = recDotDefaultDict()
     for f in os.listdir(parameters_dir):
       params[f] = np.loadtxt(open(parameters_dir + '/' + f))
-    print(params.keys())
     return params
 
   def cnn_2d(self, inputs, filter_w, filter_b, strides=[0, 1, 1, 0], 
@@ -335,14 +351,25 @@ class NPCNNBased:
   #   ksize = [1, fh, fw, 1]
   #   raise NotImplementedError
   #   return inputs
+  def getInvalidActions(self, game):
+    invalid_actions = []
+    for tile in flatten(game.kitchen.tiles):
+      if tile.name in [FLOOR_CELL, PLAYER, PARTNER]:
+        invalid_actions.append('USE %d %d' % (tile.x, tile.y))
+    return invalid_actions
 
   def getAction(self, game):
+    invalid_actions = self.getInvalidActions(game)
+
     if hasattr(self.config, 'epsilon') and np.random.rand() < self.config.epsilon:
-      action_id = np.random.randint(action_vocab.size)
+      actions = [act for act in action_vocab.rev_vocab if act not in invalid_actions]
+      action = np.random.choice(actions)
     else:
       values = self.inference(state2tensor(game.state))
+      for act in invalid_actions:
+        values[action_vocab.token2id(act)] = -INF
       action_id = np.argmax(values)
-    action = action_vocab.id2token(action_id)
+      action = action_vocab.id2token(action_id)
     return action
 
   def inference(self, inp):
@@ -432,8 +459,9 @@ def play(logic):
     # GAME LOGIC
     action = logic.getAction(game)
     game.log_state(action)
+    # table以外を使おうとすると失敗するらしい
     print(action)
-
+    
 
 def get_parser():
   desc = ""
@@ -446,8 +474,6 @@ def get_parser():
   parser.add_argument('--emb_size', default=20, type=int)
   parser.add_argument('--out_channels', default=20, type=int)
   parser.add_argument('-eps', '--epsilon', default=0.0, type=float)
-  
-  # parser.add_argument('-ct','--config_type', default='tmp', type=str, help ='')
   return parser
 
 

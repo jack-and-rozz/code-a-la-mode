@@ -2,10 +2,19 @@
 import sys, os, re, time
 import numpy as np
 import tensorflow as tf
-from dataset import Dataset
+from dataset import Dataset, print_batch
+from utils import make_summary, logManager
+from logging import FileHandler
 def _create_dir(path):
   if not os.path.exists(path):
     os.makedirs(path)
+
+BEST_CHECKPOINT_NAME = 'model.ckpt.best'
+
+def get_logger(logfile_path=None):
+  logger = logManager(handler=FileHandler(logfile_path)) if logfile_path else logManager()
+  return logger
+
 
 class Trainer:
   def __init__(self, config, sess, model):
@@ -15,33 +24,61 @@ class Trainer:
     self.setup_dirs(config)
     self.setup_params_for_train(config)
     self.restore_model(config)
+    self.logger = get_logger(self.config.model_root_path + '/train.log')
 
   def train(self):
     for epoch in range(self.epoch.eval(), self.config.max_epoch):
       self.output_parameters()
       log_dir = self.games_path + '/%03d' % self.epoch.eval()
       _create_dir(log_dir)
-      sys.stderr.write('<Epoch %d>' % epoch)
       # Wait until the similator finishes enough number of games. 
       while True:
         log_files = [log_dir + '/' + x for x in os.listdir(log_dir) if x[-5:] == '.json']
-        sys.stderr.write("\rWaiting simulator finishes enough number of games (%d/%d)." % (len(log_files), self.config.games_per_epoch))
+        sys.stderr.write("\r<Epoch %d>\tWaiting the simulator finishes enough number of games (%d/%d)." % (epoch, len(log_files), self.config.games_per_epoch))
         time.sleep(1)
         if len(log_files) >= self.config.games_per_epoch:
+          print()
           break
-      sys.stderr.write('Start training.\n')
-      data = Dataset(log_files)
+      sys.stderr.write('<Epoch %d>\tStart training.\n' % epoch)
+      data = Dataset(log_files, self.config.batch_size)
+      loss = self.run_epoch(data)
       is_best = self.log_summary(data)
-      self.run_epoch(data)
       self.add_epoch()
       self.save_model(self.model, save_as_best=is_best)
     self.output_parameters()
 
   def run_epoch(self, data):
+    for batch in data:
+      input_feed = model.get_input_feed(batch)
+      loss, _ = sess.run([model.loss, model.update], input_feed)
+      
+      pass
+    exit(1)
+    return loss
     pass
+  
+  def log_summary(self, data, loss):
+    summary = make_summary({
+      'loss': loss,
+      'AveScore/Self': data.average_score,
+      'AveScore/Enemy': data.enemy_average_score,
+    })
+    self.logger.info("Epoch %d:\tSelf, Enemy = (%d, %d)" % (
+      self.epoch.eval(), 
+      data.average_score,
+      data.enemy_average_score
+    ))
+    self.summary_writer.add_summary(summary, self.epoch.eval())
 
-  def log_summary(data):
-    is_best = True
+    if data.average_score >= self.max_score.eval():
+      is_best = True
+      prev_score = self.max_score.eval()
+      self.logger.info("Epoch %d:\tMax average score updated (%d->%d)" % (
+        self.epoch.eval(),
+        prev_score,
+        data.average_score
+      ))
+      self.update_max_score(data.average_score)
     return is_best
 
   def output_parameters(self):
@@ -98,6 +135,11 @@ class Trainer:
 
       self._update_max_score = tf.assign(self.max_score, self._next_score)
 
+  def add_epoch(self):
+    self.sess.run(self._add_epoch)
+
+  def update_max_score(self, score):
+    self.sess.run(self._update_max_score, feed_dict={self._next_score:score})
 
   def setup_dirs(self, config):
     self.root_path = config.model_root_path
@@ -111,9 +153,6 @@ class Trainer:
     _create_dir(self.summaries_path)
     _create_dir(self.games_path)
 
-
-  def add_epoch(self):
-    self.sess.run(self._add_epoch)
 
   def restore_model(self, config):
     checkpoint_path = self.checkpoints_path
@@ -130,7 +169,7 @@ class Trainer:
 
   def save_model(self, model, save_as_best=False):
     checkpoint_path = self.checkpoints_path + '/model.ckpt'
-    self.saver.save(self.sess, checkpoint_path, global_step=model.epoch)
+    self.saver.save(self.sess, checkpoint_path, global_step=self.epoch)
     if save_as_best:
       suffixes = ['data-00000-of-00001', 'index', 'meta']
 

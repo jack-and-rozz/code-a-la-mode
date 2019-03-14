@@ -6,10 +6,13 @@ import time, sys
 from pprint import pprint
 
 from play import state2tensor
+from utils import flatten_recdict
+
 class recDotDict(dict):
   __getattr__ = dict.__getitem__
   __setattr__ = dict.__setitem__
   __delattr__ = dict.__delitem__
+
   def __init__(self, _dict={}):
     for k in _dict:
       if isinstance(_dict[k], dict):
@@ -27,6 +30,17 @@ class recDotDict(dict):
     #   return None
     raise AttributeError("\'%s\' is not in %s" % (str(key), str(self.keys())))
 
+
+def parse_views(i, view_string):
+  jsonstr = view_string.split('\n')[1]
+  view = json.loads(jsonstr)
+  print('----- %d ----' % i)
+  if not 'entitymodule' in view:
+    return
+  view = view['entitymodule']
+  if 'T \'' in view:
+    print(view)
+
 if __name__ == "__main__":
   import argparse
   desc = ""
@@ -35,11 +49,41 @@ if __name__ == "__main__":
   parser.add_argument('log_file', type=str)
   args = parser.parse_args()
   path = args.log_file #= 'checkpoints/tmp/games/000/NGzZCMiiSe.detail.json'
+
+
   d = json.load(open(path))
-  logs = [json.loads(x) for x in d['errors']['0'] if x is not None]
-  
-  pprint(logs[0])
-  pprint(state2tensor(logs[0]))
+  #logs = flatten_recdict(d)
+  #print(logs.keys())
+  views = d['views']
+  setup_turns = set([0, 1, 202, 203, 404, 405])
+  views = [parse_views(i, view_str) for i, view_str in enumerate(views) if i not in setup_turns]
+  #print (views)
+  exit(1)
+  for k in d:
+    if isinstance(d[k], dict):
+      print(k, d[k].keys())
+    else:
+      print(k, type(d[k]))
+  #print(d[''])
+  logs = d['errors']['0']
+  #print(len(logs))
+  #logs = [x for x in d['errors']['0'] if x and x['turn'] == 100]
+  logs = [json.loads(x) for x in d['errors']['0'] if x]
+  #logs = [x for x in logs if x['turn'] == 100]
+  logs = [x['turn'] for x in logs]
+  print(logs)
+  #print(len(logs))
+  exit(1)
+  #logs = [json.loads(x) for x in d['errors'][str(i)] if x is not None]
+  for i in range(3):
+    print(i)
+    try:
+      logs = [json.loads(x) for x in d['errors'][str(i)] if x is not None]
+      print(len(logs))
+      pprint(logs[-1])
+      pprint(state2tensor(logs[-1]))
+    except:
+      pass
 exit(1)
 
 y, x, v = 7, 11, 23
