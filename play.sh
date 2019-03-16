@@ -15,6 +15,7 @@ others_agent=others_agents/oda1/agent
 
 play(){
     epoch=$1
+    eps=$2
     if [ ! -e $games_dir/$epoch ]; then
 	mkdir -p $games_dir/$epoch
     fi
@@ -26,15 +27,12 @@ play(){
 
     java -jar \
 	 $script_dir/judge/code-a-la-mode.jar \
-	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ 0.2 \
-	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ 0.2 \
+	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ $eps \
+	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ $eps \
 	 $others_agent \
 	 $result_path \
 	 $detail_path 2>/dev/null > /dev/null
 }
-
-play 000
-exit 1
 
 runx() {
   for ((n=0;n<$1;n++))
@@ -44,25 +42,29 @@ runx() {
 }
 play_multi(){
     epoch=$1
+    eps=$2
     #n_loop=$(( $n_play_per_epoch / $n_parallel )) 
-    n_parallel=5
-    total=100
-    for i in {1..20}; do
+    n_parallel=3
+    total=30
+    for i in {1..10}; do
 	printf "<Epoch $latest_epoch> sampling: (%s/%s)\r" $(( i * $n_parallel )) $total
-	runx $n_parallel play $epoch 
+	runx $n_parallel play $epoch $eps
     done;
 }
 
-_latest_epoch='none'
+_latest_epoch="none"
+eps=0.2
 while true; do
     epochs=$(ls $parameters_dir)
     for latest_epoch in ${epochs[@]}; do 
 	: 
     done
-    if [ $_latest_epoch != $latest_epoch ]; then
-	play_multi $latest_epoch
+    if [ -n "$latest_epoch" ]; then
+	if [ $_latest_epoch != $latest_epoch ]; then
+    	    play_multi $latest_epoch $eps
+	fi
+	_latest_epoch=$latest_epoch
     fi
-    _latest_epoch=$latest_epoch
     sleep 1s
 done;
 #play 000

@@ -1,10 +1,58 @@
 # coding: utf-8
 import collections
 from itertools import chain
+from inspect import currentframe
 import numpy as np
 import tensorflow as tf
 from play import recDotDefaultDict, action_vocab, tile_vocab, item_vocab, board_vocab, NPCNNBased, Y, X
 from logging import getLogger, StreamHandler, FileHandler, Formatter, DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+def flatten(l):
+  return list(chain.from_iterable(l))
+
+def dbgprint(*args):
+  names = {id(v):k for k,v in currentframe().f_back.f_locals.items()}
+  print(', '.join(names.get(id(arg),'???')+' = '+repr(arg) for arg in args))
+
+def shape(x, dim):
+  with tf.name_scope('shape'):
+    return x.get_shape()[dim].value or tf.shape(x)[dim]
+
+def batch_gather(emb, indices):
+  '''
+  e.g. arr = [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]  # arr.shape = [2,2,2]
+       indices = [[0], [1]] 
+       res = [[[0, 1], [6, 7]]]
+
+       indices = [[0, 0], [0, 1]]
+       res = [[[0, 1], [0, 1]], [[4, 5], [6, 7]]]
+  '''
+  # When the rank of emb is N, indices of rank N-1 tensor is regarded as batch respective specifications.
+  if len(indices.get_shape()) == 1:
+    indices = tf.expand_dims(indices, 1)
+  batch_size = shape(emb, 0)
+  seqlen = shape(emb, 1)
+  if len(emb.get_shape()) > 2:
+    emb_size = shape(emb, 2)
+  else:
+    emb_size = 1
+  flattened_emb = tf.reshape(emb, [batch_size * seqlen, emb_size])  # [batch_size * seqlen, emb]
+
+  offset = tf.expand_dims(tf.range(batch_size) * seqlen, 1)  # [batch_size, 1]
+
+  gathered = tf.gather(flattened_emb, indices + offset) # [batch_size, num_indices, emb]
+
+  return gathered
+
+
+def flatten_timeseries_tensor(t):
+  # batch_size = shape(t, 0)
+  # max_timestep = shape(t, 1)
+  # other_shapes = [shape(t, i+2) for i in range(len(t.get_shape()) - 2)]
+  original_shape = [shape(t, i) for i in range(len(t.get_shape()))]
+  batch_size = original_shape[0]
+  max_timestep = original_shape[1]
+  return tf.reshape(t, [batch_size*max_timestep] + original_shape[2:]), original_shape
 
 def make_summary(value_dict):
   return tf.Summary(value=[tf.Summary.Value(tag=k, simple_value=v) for k,v in list(value_dict.items())])
@@ -22,15 +70,10 @@ def generate_random_inp():
   inp.board = board
   inp.orders = orders
   inp.timer = timer
+  inp.rewards = np.random.randint(3000)
   return inp
 
 
-def flatten(l):
-  return list(chain.from_iterable(l))
-
-def shape(x, dim):
-  with tf.name_scope('shape'):
-    return x.get_shape()[dim].value or tf.shape(x)[dim]
 
 class dotDict(dict):
   __getattr__ = dict.__getitem__

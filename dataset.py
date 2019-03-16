@@ -55,12 +55,12 @@ def parse_log(path):
 
   rewards = parse_rewards_sum(d['views'])
   for i in range(100):
-    player1[i].reward = rewards[0][i]
-    player2[i].reward = rewards[0][i]
+    player1[i].rewards = rewards[0][i]
+    player2[i].rewards = rewards[0][i]
 
   for i in range(100, 200):
-    player1[i].reward = rewards[1][i-100]
-    player2[i].reward = rewards[2][i-100]
+    player1[i].rewards = rewards[1][i-100]
+    player2[i].rewards = rewards[2][i-100]
 
   return (player1[:100], player1[100:200], player2[:100], player2[100:200])
 

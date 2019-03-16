@@ -38,21 +38,30 @@ def get_parser():
   parser = argparse.ArgumentParser(description=desc)
   parser.add_argument('model_root_path', default=None, type=str, help ='')
   parser.add_argument('-m', '--mode', default='train')
-  parser.add_argument('-gpe', '--games_per_epoch', default=100, type=int)
-  parser.add_argument('--batch_size', default=2, type=int)
+
+  # Training parameter
+  parser.add_argument('-gpe', '--games_per_epoch', default=30, type=int)        
+  parser.add_argument('--batch_size', default=5, type=int)
   parser.add_argument('--max_epoch', default=50, type=int)
   parser.add_argument('--max_to_keep', default=1, type=int)
   parser.add_argument('--optimizer_type', default='AdamOptimizer')
   parser.add_argument('--max_gradient_norm', default=1.0, type=float)
   parser.add_argument('--decay_rate_per_epoch', default=0.75, type=float)
+  
   parser.add_argument('--learning_rate', default=0.0001, type=float)
-  parser.add_argument('--dropout_rate', default=0.25, type=float)
+  parser.add_argument('--dropout_rate', default=0.2, type=float)
 
+  # NN parameters
   parser.add_argument('--filter_h', default=3, type=int)
   parser.add_argument('--filter_w', default=3, type=int)
   parser.add_argument('--emb_size', default=20, type=int)
   parser.add_argument('--out_channels', default=20, type=int)
 
+  # RL parameters
+  parser.add_argument('-mt', '--max_turns', default=100, type=int)
+  parser.add_argument('-ms', '--max_steps', default=10, type=int)
+  parser.add_argument('--td_gamma', default=0.99, type=float)
+  parser.add_argument('--td_lambda', default=0.95, type=float)
   
   return parser
 

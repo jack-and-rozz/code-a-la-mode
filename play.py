@@ -24,7 +24,6 @@ class Vocab():
 #######################################
 ##          Consts
 #######################################
-
 # Board size
 Y, X = 7, 11
 INF = 9999
@@ -58,9 +57,10 @@ CROISSANT = "CROISSANT"
 RAW_TART = "RAW_TART"
 TART = "TART"
 
-#######################################
+#####################################
 ##          Utils 
-#######################################
+#####################################
+
 class recDotDefaultDict(collections.defaultdict):
   __getattr__ = collections.defaultdict.__getitem__
   __setattr__ = collections.defaultdict.__setitem__
@@ -107,12 +107,17 @@ def state2tensor(state):
     orders = state['orders']
     player = state['player']
     partner = state['partner']
+    action= state['action']
+    rewards = state['rewards']
   else:
     turn, timer, kitchen, items, orders, player, partner = state
+    # Only available from similator.
+    action = None
+    rewards = None
   # Kitchen and Items (= board) state
   max_x = len(kitchen[0])
-  max_y = len(kitchen) 
-  
+  max_y = len(kitchen)
+
   board_state = np.zeros([max_y, max_x, board_vocab.size], dtype=np.int32)
   for y, kitchen_line in enumerate(kitchen):
     for x, tile in enumerate(kitchen_line):
@@ -143,6 +148,7 @@ def state2tensor(state):
   for item in _partner_items:
     partner_items[item_vocab.token2id(item)] += 1
 
+
   state = {
     'turn': np.array(turn),
     'board': board_state,
@@ -153,6 +159,8 @@ def state2tensor(state):
     'player_items': player_items,
     'partner_coord': np.array(partner_coord),
     'partner_items': partner_items,
+    'actions': action_vocab.token2id(action) if action else None,
+    'rewards': np.array(rewards) if rewards is not None else None
   }
   return state
 
@@ -258,6 +266,7 @@ class Game:
       state['timer'] = timer
       state['player'] = player
       state['partner'] = partner
+      state['action'] = action
       # for k, v in state.items():
       #   if type(v) == np.ndarray:
       #     state[k] = v.tolist()
