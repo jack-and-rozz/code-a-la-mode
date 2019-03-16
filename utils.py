@@ -14,49 +14,6 @@ def dbgprint(*args):
   names = {id(v):k for k,v in currentframe().f_back.f_locals.items()}
   print(', '.join(names.get(id(arg),'???')+' = '+repr(arg) for arg in args))
 
-def shape(x, dim):
-  with tf.name_scope('shape'):
-    return x.get_shape()[dim].value or tf.shape(x)[dim]
-
-def batch_gather(emb, indices):
-  '''
-  e.g. arr = [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]  # arr.shape = [2,2,2]
-       indices = [[0], [1]] 
-       res = [[[0, 1], [6, 7]]]
-
-       indices = [[0, 0], [0, 1]]
-       res = [[[0, 1], [0, 1]], [[4, 5], [6, 7]]]
-  '''
-  # When the rank of emb is N, indices of rank N-1 tensor is regarded as batch respective specifications.
-  if len(indices.get_shape()) == 1:
-    indices = tf.expand_dims(indices, 1)
-  batch_size = shape(emb, 0)
-  seqlen = shape(emb, 1)
-  if len(emb.get_shape()) > 2:
-    emb_size = shape(emb, 2)
-  else:
-    emb_size = 1
-  flattened_emb = tf.reshape(emb, [batch_size * seqlen, emb_size])  # [batch_size * seqlen, emb]
-
-  offset = tf.expand_dims(tf.range(batch_size) * seqlen, 1)  # [batch_size, 1]
-
-  gathered = tf.gather(flattened_emb, indices + offset) # [batch_size, num_indices, emb]
-
-  return gathered
-
-
-def flatten_timeseries_tensor(t):
-  # batch_size = shape(t, 0)
-  # max_timestep = shape(t, 1)
-  # other_shapes = [shape(t, i+2) for i in range(len(t.get_shape()) - 2)]
-  original_shape = [shape(t, i) for i in range(len(t.get_shape()))]
-  batch_size = original_shape[0]
-  max_timestep = original_shape[1]
-  return tf.reshape(t, [batch_size*max_timestep] + original_shape[2:]), original_shape
-
-def make_summary(value_dict):
-  return tf.Summary(value=[tf.Summary.Value(tag=k, simple_value=v) for k,v in list(value_dict.items())])
-
 def generate_random_inp():
   inp = dotDict()
   board = np.random.randint(2, size=Y*X*board_vocab.size)
@@ -69,6 +26,7 @@ def generate_random_inp():
   timer[np.random.randint(11)] = 1
   inp.board = board
   inp.orders = orders
+  inp.order_awards = np.random.randint(2000, size=3).astype(np.float16)
   inp.timer = timer
   inp.rewards = np.random.randint(3000)
   return inp
@@ -136,3 +94,84 @@ def logManager(logger_name='main',
     logger.setLevel(level)
     logger.addHandler(handler)
     return logger
+
+
+
+
+def shape(x, dim):
+  with tf.name_scope('shape'):
+    return x.get_shape()[dim].value or tf.shape(x)[dim]
+
+def ffnn(inputs, output_size=None, initializer=None,
+         activation=tf.nn.tanh, scope=None):
+  """
+  Args:
+    inputs : Rank 2 or 3 Tensor of shape [batch_size, (sequence_size,) hidden_size].
+    output_size : An integer.
+  """
+  if output_size is None:
+    output_size = shape(inputs, -1)
+  with tf.variable_scope(scope or "ffnn"):
+    inputs_rank = len(inputs.get_shape().as_list())
+    hidden_size = shape(inputs, -1)
+    initializer = tf.initializers.truncated_normal(stddev=0.01)
+    w = tf.get_variable('w', [hidden_size, output_size],
+                        initializer=initializer)
+    b = tf.get_variable('b', [output_size],
+                        initializer=initializer)
+    if inputs_rank == 3:
+      batch_size = shape(inputs, 0)
+      max_sequence_length = shape(inputs, 1)
+      inputs = tf.reshape(inputs, [batch_size * max_sequence_length, hidden_size])
+      outputs = activation(tf.nn.xw_plus_b(inputs, w, b))
+      outputs = tf.reshape(outputs, [batch_size, max_sequence_length, output_size])
+    elif inputs_rank == 2:
+      outputs = activation(tf.nn.xw_plus_b(inputs, w, b))
+    else:
+      ValueError("linear with rank {} not supported".format(inputs_rank))
+
+    return outputs
+
+###########################################
+##         Tensorflow Utils
+###########################################
+
+def batch_gather(emb, indices):
+  '''
+  e.g. arr = [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]  # arr.shape = [2,2,2]
+       indices = [[0], [1]] 
+       res = [[[0, 1], [6, 7]]]
+
+       indices = [[0, 0], [0, 1]]
+       res = [[[0, 1], [0, 1]], [[4, 5], [6, 7]]]
+  '''
+  # When the rank of emb is N, indices of rank N-1 tensor is regarded as batch respective specifications.
+  if len(indices.get_shape()) == 1:
+    indices = tf.expand_dims(indices, 1)
+  batch_size = shape(emb, 0)
+  seqlen = shape(emb, 1)
+  if len(emb.get_shape()) > 2:
+    emb_size = shape(emb, 2)
+  else:
+    emb_size = 1
+  flattened_emb = tf.reshape(emb, [batch_size * seqlen, emb_size])  # [batch_size * seqlen, emb]
+
+  offset = tf.expand_dims(tf.range(batch_size) * seqlen, 1)  # [batch_size, 1]
+
+  gathered = tf.gather(flattened_emb, indices + offset) # [batch_size, num_indices, emb]
+
+  return gathered
+
+
+def flatten_timeseries_tensor(t):
+  # batch_size = shape(t, 0)
+  # max_timestep = shape(t, 1)
+  # other_shapes = [shape(t, i+2) for i in range(len(t.get_shape()) - 2)]
+  original_shape = [shape(t, i) for i in range(len(t.get_shape()))]
+  batch_size = original_shape[0]
+  max_timestep = original_shape[1]
+  return tf.reshape(t, [batch_size*max_timestep] + original_shape[2:]), original_shape
+
+def make_summary(value_dict):
+  return tf.Summary(value=[tf.Summary.Value(tag=k, simple_value=v) for k,v in list(value_dict.items())])
+

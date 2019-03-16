@@ -66,7 +66,6 @@ class Trainer:
       loss = self.run_epoch(data)
       is_best = self.log_summary(data, loss)
       self.add_epoch()
-      exit(1)
       self.save_model(self.model, save_as_best=is_best)
     self.output_parameters()
 
@@ -81,10 +80,9 @@ class Trainer:
       #   dbgprint(ops, np.any(np.isnan(out)))
 
       loss, _ = self.sess.run([self.model.loss, self.updates], input_feed)
-      sys.stderr.write('Epoch %d, Step %d:\t loss=%.3f\n' % (self.epoch.eval(), step, loss))
+      sys.stderr.write('Epoch %d, Step %d:\t loss=%e\n' % (self.epoch.eval(), step, loss))
       if np.isnan(loss):
         sys.stderr.write('NaN loss error.\n')
-        exit(1)
 
       losses.append(loss)
     return sum(losses) / len(losses)
@@ -122,11 +120,21 @@ class Trainer:
 
   def output_parameters(self):
     epoch = self.epoch.eval()
-    variables_path = self.root_path + '/variables.list'
+    variables_path = self.root_path + '/variables.list'      
+
+    def n_params(v):
+      xx = 1
+      for x in v.shape:
+        xx *= x
+      return xx
+
     with open(variables_path, 'w') as f:
       variable_names = sorted([v.name + ' ' + str(v.get_shape()) for v in tf.global_variables()])
       variable_names = [name for name in variable_names if not re.search('Adam', name)]
       f.write('\n'.join(variable_names) + '\n')
+
+      n_total_parameters = sum([n_params(v) for v in tf.global_variables() if not re.search('Adam', v.name) and len(v.shape) > 0 ])
+      f.write('# total parameters: %d\n' % n_total_parameters)
 
     variables = sorted([(v.name, v) for v in tf.global_variables()])
     parameters_path = self.parameters_path + '/%03d' % epoch
@@ -135,7 +143,7 @@ class Trainer:
       if not re.search('Adam', name) and len(v.shape) > 0 and len(v.shape) < 3:
         name = name[:-2].replace('/', '_')
         np.savetxt(parameters_path + '/' + name, v.eval(), 
-                   fmt='%.11e')
+                   fmt='%.8e')
 
   def setup_params_for_train(self, config):
     with tf.name_scope('global_variables'):

@@ -20,8 +20,8 @@ def main(args):
       inp = generate_random_inp()
       a = tf_model.inference(inp)
       b = np_model.inference(inp)
-      print(a)
-      print(b)
+      print(a[0][0][:10])
+      print(b[:10])
       #print(a.dtype)
       #print(b.dtype)
 
@@ -55,7 +55,8 @@ def get_parser():
   parser.add_argument('--filter_h', default=3, type=int)
   parser.add_argument('--filter_w', default=3, type=int)
   parser.add_argument('--emb_size', default=20, type=int)
-  parser.add_argument('--out_channels', default=20, type=int)
+  parser.add_argument('--attn_size', default=10, type=int)
+  parser.add_argument('--out_channels', default=40, type=int)
 
   # RL parameters
   parser.add_argument('-mt', '--max_turns', default=100, type=int)
