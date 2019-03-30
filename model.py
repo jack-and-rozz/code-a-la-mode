@@ -2,7 +2,7 @@
 import tensorflow as tf 
 from utils import dbgprint, dotDict, shape, flatten_timeseries_tensor, batch_gather, ffnn
 
-from play import recDotDefaultDict, action_vocab, tile_vocab, item_vocab, board_vocab, NPCNNBased, Y, X, REWARD_SCALE
+from play import action_vocab, tile_vocab, item_vocab, board_vocab, NPCNNBased, Y, X, REWARD_SCALE
 
 PARAM_DTYPE = tf.float32 # Pass epsilon=1e-4 when constructing AdamOptimizer if this model have it parameters as tf.float16. Otherwise some elements of gradients become NaN.
 CALC_DTYPE = tf.float32
@@ -52,7 +52,7 @@ class TFCNNBased:
     self.max_turns = config.max_turns if config.mode == 'train' else 1
 
     with tf.name_scope('placeholder'):
-      self.ph.is_training = tf.placeholder(tf.bool, name='is_training', shape=[]) 
+      self.ph.is_training =  tf.placeholder(tf.bool, name='is_training', shape=[]) 
       self.ph.board = tf.placeholder( 
         tf.int32, name='board', 
         shape=[None, self.max_turns, Y, X, board_vocab.size])
@@ -131,6 +131,7 @@ class TFCNNBased:
     self.loss = tf.reduce_sum(self.loss_by_example, name='loss')
 
     self.debug_ops = [self.q_values, self.q_values_of_selected_action, self.loss, self.loss_by_example, self.hidden_state, self.board_emb, self.action_emb]
+  
   def calc_n_step_target_values(self, q_values, actions, rewards, N, max_turns):
     # Q(t) = R(t) + gamma * R(t+1) + ... + gamma^{N-1} * R(t+N) + gamma^N Q(t+N)
     target_values = []
@@ -142,6 +143,7 @@ class TFCNNBased:
 
         target_values.append(_target_values)
     target_values = tf.stack(target_values, axis=1)
+    target_values = tf.stop_gradient(target_values)
     return target_values
 
 
@@ -159,7 +161,8 @@ class TFCNNBased:
              scope=None):
     '''
     - inputs: [batch, in_height, in_width, in_channels]
-    - filter: [filter_h, filter_w, in_channel, out_channel]
+    - filter_w: [filter_h, filter_w, in_channel, out_channel]
+    - filter_b: 
     '''
     with tf.variable_scope(scope or '2DCNN'):
       outputs = tf.nn.conv2d(inputs, filter_w, strides, padding) + filter_b
@@ -181,14 +184,14 @@ class TFCNNBased:
     batch_size = shape(board_ph, 0)
     board_ph = tf.cast(board_ph, CALC_DTYPE)
     orders_ph = tf.cast(orders_ph, CALC_DTYPE)
-
+    out_channels = config.emb_size
     with tf.variable_scope('embeddings'):
       board_emb = tf.get_variable('board', 
                                   shape=[board_vocab.size, config.emb_size], 
                                   dtype=PARAM_DTYPE)
       board_emb = tf.cast(board_emb, dtype=CALC_DTYPE)
       action_emb = tf.get_variable('action', 
-                                   shape=[3, config.out_channels],
+                                   shape=[3, out_channels],
                                    dtype=PARAM_DTYPE)
       action_emb = tf.cast(action_emb, dtype=CALC_DTYPE)
       wait_emb = action_emb[0]
@@ -196,11 +199,11 @@ class TFCNNBased:
       use_emb = action_emb[2]
 
     with tf.variable_scope('L1_CNN'):
-      filter_w = tf.get_variable('w', [config.filter_h * config.filter_w * config.emb_size, config.out_channels], dtype=PARAM_DTYPE) # save as 2D array.
+      filter_w = tf.get_variable('w', [config.filter_h * config.filter_w * config.emb_size, out_channels], dtype=PARAM_DTYPE) # save as 2D array.
       filter_w = tf.cast(filter_w, dtype=CALC_DTYPE)
 
-      filter_w = tf.reshape(filter_w, [config.filter_h, config.filter_w, config.emb_size, config.out_channels]) 
-      filter_b = tf.get_variable('b', [config.out_channels],
+      filter_w = tf.reshape(filter_w, [config.filter_h, config.filter_w, config.emb_size, out_channels]) 
+      filter_b = tf.get_variable('b', [out_channels],
                                  dtype=PARAM_DTYPE)
       filter_b = tf.cast(filter_b, dtype=CALC_DTYPE)
 
@@ -209,7 +212,20 @@ class TFCNNBased:
       local_board_repls = tf.matmul(tf.reshape(board_ph, [batch_size*Y*X, board_vocab.size]), board_emb)
       local_board_repls = tf.reshape(local_board_repls, [batch_size, Y, X, emb_size])
 
-      local_board_repls = self.cnn_2d(local_board_repls, filter_w, filter_b)
+      dbgprint(local_board_repls)
+      activation = tf.nn.relu
+      with tf.name_scope('L1'):
+        local_board_repls = self.cnn_2d(local_board_repls, filter_w, filter_b,
+                                        padding='SAME', activation=activation)
+      dbgprint(local_board_repls)
+      with tf.name_scope('L2'):
+        global_board_repls = self.cnn_2d(local_board_repls, filter_w, filter_b,
+                                         padding='VALID', activation=activation)
+
+      with tf.name_scope('L3'):
+        global_board_repls = self.cnn_2d(global_board_repls, filter_w, filter_b,
+                                         padding='VALID', activation=activation)
+
       global_board_repls = tf.reduce_mean(local_board_repls, axis=(1,2),
                                           name='global_board_repls')
       hidden_state = global_board_repls

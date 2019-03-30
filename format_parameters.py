@@ -16,7 +16,7 @@ def compress_tensor_str(t):
 def main(args):
   parameter_dir = args.model_root_path + '/parameters'
   parameter_dir = parameter_dir + '/%03d' % args.epoch if args.epoch else parameter_dir + '/' + os.listdir(parameter_dir)[-1] 
-  print('PARAMS = recDotDefaultDict()')
+  print('PARAMS = dotDict()')
   for f in os.listdir(parameter_dir):
     p = np.loadtxt(parameter_dir + '/' + f)
     p = compress_tensor_str(p)

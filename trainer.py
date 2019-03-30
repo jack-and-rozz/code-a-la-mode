@@ -5,6 +5,7 @@ import tensorflow as tf
 from dataset import Dataset, print_batch
 from utils import make_summary, logManager, dbgprint
 from logging import FileHandler
+
 def _create_dir(path):
   if not os.path.exists(path):
     os.makedirs(path)
@@ -97,12 +98,13 @@ class Trainer:
       'AveScore/Enemy': enemy_score,
       'AveScore/Ratio': score_ratio,
     })
-    self.logger.info("<Epoch %d>\tScore(self, enemy, ratio)=(%d, %d, %.2f), loss=%.3f" % (
+    self.logger.info("<Epoch %d>\tScore(self, enemy, ratio)=(%d, %d, %.2f), loss=%.3f, learning_rate=%e" % (
       self.epoch.eval(), 
       self_score,
       enemy_score,
       score_ratio,
-      loss
+      loss,
+      self.learning_rate.eval()
     ))
     self.summary_writer.add_summary(summary, self.epoch.eval())
     is_best = False

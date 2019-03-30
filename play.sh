@@ -11,7 +11,7 @@ model_dir=$1
 script_dir=$(cd $(dirname $0); pwd)
 games_dir=$model_dir/games
 parameters_dir=$model_dir/parameters
-others_agent=others_agents/oda1/agent
+others_agent=others_agents/oda1/learning_agent
 
 play(){
     epoch=$1
@@ -27,8 +27,8 @@ play(){
 
     java -jar \
 	 $script_dir/judge/code-a-la-mode.jar \
-	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ $eps \
-	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ $eps \
+	 python\ play.py\ -mrp\ $model_dir\ -e\ $epoch\ -eps\ $eps\ --log_as_json \
+	 $others_agent \
 	 $others_agent \
 	 $result_path \
 	 $detail_path 2>/dev/null > /dev/null
@@ -44,16 +44,18 @@ play_multi(){
     epoch=$1
     eps=$2
     #n_loop=$(( $n_play_per_epoch / $n_parallel )) 
-    n_parallel=3
-    total=30
-    for i in {1..10}; do
-	printf "<Epoch $latest_epoch> sampling: (%s/%s)\r" $(( i * $n_parallel )) $total
+    n_parallel=15
+    total=600
+    printf "<Epoch $latest_epoch> sampling: (%s/%s)\r" $(( 0 * $n_parallel )) $total
+    for i in {1..40}; do
 	runx $n_parallel play $epoch $eps
+	printf "<Epoch $latest_epoch> sampling: (%s/%s)\r" $(( i * $n_parallel )) $total
+
     done;
 }
 
 _latest_epoch="none"
-eps=0.2
+eps=0.1
 while true; do
     epochs=$(ls $parameters_dir)
     for latest_epoch in ${epochs[@]}; do 

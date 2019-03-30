@@ -3,7 +3,7 @@ import sys, os
 import numpy as np
 import tensorflow as tf
 from trainer import Trainer
-from play import recDotDefaultDict, action_vocab, tile_vocab, item_vocab, NPCNNBased
+from play import action_vocab, tile_vocab, item_vocab, NPCNNBased
 from utils import generate_random_inp
 from model import TFCNNBased
 
@@ -40,27 +40,29 @@ def get_parser():
   parser.add_argument('-m', '--mode', default='train')
 
   # Training parameter
-  parser.add_argument('-gpe', '--games_per_epoch', default=30, type=int)        
-  parser.add_argument('--batch_size', default=5, type=int)
-  parser.add_argument('--max_epoch', default=50, type=int)
+  parser.add_argument('-gpe', '--games_per_epoch', default=600, type=int)        
+  parser.add_argument('--batch_size', default=30, type=int)
+  parser.add_argument('--max_epoch', default=150, type=int)
   parser.add_argument('--max_to_keep', default=1, type=int)
   parser.add_argument('--optimizer_type', default='AdamOptimizer')
   parser.add_argument('--max_gradient_norm', default=1.0, type=float)
-  parser.add_argument('--decay_rate_per_epoch', default=0.75, type=float)
+  parser.add_argument('--decay_rate_per_epoch', default=0.99, type=float)
   
-  parser.add_argument('--learning_rate', default=0.0001, type=float)
-  parser.add_argument('--dropout_rate', default=0.2, type=float)
+  parser.add_argument('--learning_rate', default=0.001, type=float)
+  parser.add_argument('--dropout_rate', default=0.1, type=float)
 
   # NN parameters
   parser.add_argument('--filter_h', default=3, type=int)
   parser.add_argument('--filter_w', default=3, type=int)
-  parser.add_argument('--emb_size', default=20, type=int)
+  #parser.add_argument('--emb_size', default=20, type=int)
+  #parser.add_argument('--out_channels', default=40, type=int)
+  parser.add_argument('--emb_size', default=30, type=int)
+  parser.add_argument('--out_channels', default=30, type=int)
   parser.add_argument('--attn_size', default=10, type=int)
-  parser.add_argument('--out_channels', default=40, type=int)
 
   # RL parameters
   parser.add_argument('-mt', '--max_turns', default=100, type=int)
-  parser.add_argument('-ms', '--max_steps', default=10, type=int)
+  parser.add_argument('-ms', '--max_steps', default=25, type=int)
   parser.add_argument('--td_gamma', default=0.99, type=float)
   parser.add_argument('--td_lambda', default=0.95, type=float)
   

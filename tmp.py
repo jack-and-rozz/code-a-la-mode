@@ -59,14 +59,17 @@ if __name__ == "__main__":
   #setup_turns = set([0, 1, 202, 203, 404, 405])
   #views = [parse_views(i, view_str) for i, view_str in enumerate(views) if i not in setup_turns]
   #print (views)
-
-  logs = [json.loads(x) for x in d['errors']['0'] if x]
   
-  for i in range(len(logs)):
-    print('-----------------')
-    for k, v in logs[i].items():
-      print(k, v)
-      #print(v)
+  logs = [[json.loads(x) for x in d['errors'][str(i)] if x] for i in range(3)]
+  for log in logs[2]:
+    if log.items:
+      pprint(log)
+  exit(1)
+  for i in range(3):
+    print('------ %d ----' % i)
+    print(len(logs[i]))
+    pprint(logs[i][0])
+    pprint(logs[i][-1])
   exit(1)
   for k in d:
     if isinstance(d[k], dict):

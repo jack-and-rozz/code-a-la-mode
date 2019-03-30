@@ -4,7 +4,7 @@ from itertools import chain
 from inspect import currentframe
 import numpy as np
 import tensorflow as tf
-from play import recDotDefaultDict, action_vocab, tile_vocab, item_vocab, board_vocab, NPCNNBased, Y, X
+from play import action_vocab, tile_vocab, item_vocab, board_vocab, NPCNNBased, Y, X
 from logging import getLogger, StreamHandler, FileHandler, Formatter, DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 def flatten(l):
