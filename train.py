@@ -11,6 +11,7 @@ def main(args):
   inp = generate_random_inp()
   with tf.Session() as sess:
     tf_model = TFCNNBased(args, sess)
+    exit(1)
     trainer = Trainer(args, sess, tf_model)
     if args.mode == 'train':
       trainer.train()

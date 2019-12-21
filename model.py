@@ -29,12 +29,6 @@ def attention(ref_state, cand_states, attn_vector_size,
       v1 = ffnn(ref_state, attn_vector_size)
     with tf.variable_scope('cand'):
       v2 = ffnn(cand_states, attn_vector_size)
-    # w1 = tf.get_variable('w1', [shape(ref_state, -1), attn_vector_size])
-    # b1 = tf.get_variable('b1', [attn_vector_size])
-    # w2 = tf.get_variable('w2', [shape(cand_states, -1), attn_vector_size])
-    # b2 = tf.get_variable('b2', [attn_vector_size])
-    # v1 = activation(tf.matmul(ref_state, w1) + b1)
-    # v2 = activation(tf.matmul(tf.reshape(cand_states, [-1, shape(cand_states, -1)]), w2) + b2)
     v1 = tf.expand_dims(v1, 1)
     v2 = tf.reshape(v2, [-1, num_candidates, attn_vector_size])
     attn_weights = tf.nn.softmax(tf.reduce_sum(v1 * v2, axis=-1))
@@ -74,7 +68,6 @@ class TFCNNBased:
 
     batch_size = shape(self.ph.board, 0)
     num_turns = shape(self.ph.board , 1)
-
     with tf.name_scope('flatten'):
       flat_board, _ = flatten_timeseries_tensor(self.ph.board)
       flat_orders, _ = flatten_timeseries_tensor(self.ph.orders)
@@ -83,13 +76,13 @@ class TFCNNBased:
 
     with tf.name_scope('calc_q_values'):
       flat_q_values = self.calc_q_values(config, flat_board, flat_orders,
-                                            flat_order_awards)
+                                         flat_order_awards)
       q_values = tf.reshape(flat_q_values, [batch_size, num_turns, -1], 
                             name='q_values')
 
     with tf.name_scope('q_values_of_selected_action'):
       actions = self.ph.actions
-      q_values_of_selected_action =  tf.batch_gather(
+      q_values_of_selected_action = tf.batch_gather(
         q_values, 
         tf.expand_dims(actions, -1))
       q_values_of_selected_action = tf.reshape(
@@ -121,8 +114,6 @@ class TFCNNBased:
       target_values = tf.stack(target_values, axis=-1)
       target_values = tf.reduce_sum(target_values, axis=-1)
 
-
-    
     self.q_values = q_values
     self.q_values_of_selected_action = q_values_of_selected_action
     self.loss_by_example = clipped_loss(
@@ -207,17 +198,17 @@ class TFCNNBased:
                                  dtype=PARAM_DTYPE)
       filter_b = tf.cast(filter_b, dtype=CALC_DTYPE)
 
+  
     with tf.name_scope('encode_board'):
       emb_size = shape(board_emb, -1)
-      local_board_repls = tf.matmul(tf.reshape(board_ph, [batch_size*Y*X, board_vocab.size]), board_emb)
-      local_board_repls = tf.reshape(local_board_repls, [batch_size, Y, X, emb_size])
+      local_board_repls = tf.reshape(board_ph, [batch_size*Y*X, board_vocab.size])
+      local_board_repls = tf.matmul(local_board_repls, board_emb) # [batch_size * Y * X, emb_size]
+      local_board_repls = tf.reshape(local_board_repls, [batch_size, Y, X, emb_size]) # # [batch_size, Y, X, emb_size]
 
-      dbgprint(local_board_repls)
       activation = tf.nn.relu
       with tf.name_scope('L1'):
         local_board_repls = self.cnn_2d(local_board_repls, filter_w, filter_b,
                                         padding='SAME', activation=activation)
-      dbgprint(local_board_repls)
       with tf.name_scope('L2'):
         global_board_repls = self.cnn_2d(local_board_repls, filter_w, filter_b,
                                          padding='VALID', activation=activation)
@@ -225,11 +216,10 @@ class TFCNNBased:
       with tf.name_scope('L3'):
         global_board_repls = self.cnn_2d(global_board_repls, filter_w, filter_b,
                                          padding='VALID', activation=activation)
-
       global_board_repls = tf.reduce_mean(local_board_repls, axis=(1,2),
                                           name='global_board_repls')
       hidden_state = global_board_repls
-
+  
     with tf.variable_scope('encode_order'):
       order_repls = tf.matmul(tf.reshape(orders_ph, [batch_size * 3, -1]), 
                               board_emb[:item_vocab.size])
@@ -240,7 +230,8 @@ class TFCNNBased:
       # order_w = tf.get_variable('w', [emb_size, emb_size], dtype=PARAM_DTYPE)
       # order_b = tf.get_variable('b', [emb_size], dtype=PARAM_DTYPE)
 
-      dbgprint(local_board_repls, order_repls, hidden_state)
+      # dbgprint(local_board_repls, order_repls, hidden_state)
+      # exit(1)
       order_attn_weights = attention(hidden_state, order_repls, 
                                      self.config.attn_size)
       order_repls = order_attn_weights * order_repls
@@ -249,8 +240,9 @@ class TFCNNBased:
     with tf.variable_scope('combine_board_order') as scope:
       with tf.variable_scope('L1'):
         pass
-        # combined_state = tf.concat([hidden_state, order_repls], -1)
-        # hidden_state = ffnn(combined_state, config.out_channels)a
+      # TODO: combine order
+      # combined_state = tf.concat([hidden_state, order_repls], -1)
+      # hidden_state = ffnn(combined_state, config.out_channels)a
 
     with tf.variable_scope('output'):
       def _expand(state):
@@ -261,22 +253,12 @@ class TFCNNBased:
       state_for_wait = wait_emb
       state_for_move = _expand(hidden_state * move_emb)
       state_for_use = _expand(hidden_state * use_emb)
-
       wait_action = tf.expand_dims(state_for_wait * hidden_state, axis=-2)
       move_action = tf.reshape(state_for_move * local_board_repls, [batch_size, Y*X, shape(hidden_state, -1)])
       use_action = tf.reshape(state_for_use * local_board_repls, [batch_size, Y*X, shape(hidden_state, -1)])
       action_repls = tf.concat([wait_action, move_action, use_action], axis=-2)
       #dbgprint(action_repls)
-      q_values = tf.reduce_sum(action_repls, axis=-1)
-
-      #exit(1)
-      # wait_q_value = tf.reduce_sum(wait_action, axis=-1)
-      # wait_q_value = tf.expand_dims(wait_q_value, 1)
-      # move_q_values = tf.reduce_sum(move_action, axis=-1)
-      # move_q_values = tf.reshape(move_q_values, [batch_size, Y*X])
-      # use_q_values = tf.reduce_sum(use_action, axis=-1)
-      # use_q_values = tf.reshape(use_q_values, [batch_size, Y*X])
-      # q_values = tf.concat([wait_q_value, move_q_values, use_q_values], axis=-1) #[batch_size, 1 + 2 * x * y] 
+      q_values = tf.reduce_sum(action_repls, axis=-1) # [batch_size, 2*Y*X+1]
     self.hidden_state = hidden_state
     self.board_emb = board_emb
     self.action_emb = action_emb

@@ -96,8 +96,6 @@ def logManager(logger_name='main',
     return logger
 
 
-
-
 def shape(x, dim):
   with tf.name_scope('shape'):
     return x.get_shape()[dim].value or tf.shape(x)[dim]
@@ -167,6 +165,10 @@ def flatten_timeseries_tensor(t):
   # batch_size = shape(t, 0)
   # max_timestep = shape(t, 1)
   # other_shapes = [shape(t, i+2) for i in range(len(t.get_shape()) - 2)]
+  '''
+  Input: [batch_size, max_timestep, *]
+  Output: [batch_size * max_timestep, *]
+  '''
   original_shape = [shape(t, i) for i in range(len(t.get_shape()))]
   batch_size = original_shape[0]
   max_timestep = original_shape[1]

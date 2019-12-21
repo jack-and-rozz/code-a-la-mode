@@ -33,7 +33,7 @@ class Trainer:
       params = tf.contrib.framework.get_trainable_variables()
       opt = self.optimizer
       return opt.minimize(loss, global_step=global_step)
-      
+
       ######################
       # clippingがおかしい？
       if config.max_gradient_norm:
@@ -76,9 +76,9 @@ class Trainer:
     for step, batch in enumerate(data):
       #print_batch(batch)
       input_feed = self.model.get_input_feed(batch)
-      outputs = self.sess.run(self.model.debug_ops, input_feed)
-      # for out, ops in zip(outputs, model.debug_ops):
-      #   dbgprint(ops, np.any(np.isnan(out)))
+      # outputs = self.sess.run(self.model.debug_ops, input_feed)
+      for out, ops in zip(outputs, model.debug_ops):
+        dbgprint(ops, np.any(np.isnan(out)))
 
       loss, _ = self.sess.run([self.model.loss, self.updates], input_feed)
       sys.stderr.write('Epoch %d, Step %d:\t loss=%e\n' % (self.epoch.eval(), step, loss))
